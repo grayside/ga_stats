@@ -400,8 +400,15 @@ class gapi
    */
   protected function authenticateUser($email, $password)
   {
+	//Updated by jec006 to handle apps accounts also
+	if( stristr($email, 'gmail.com') || stristr($email, 'mail.google.com') ) {
+		$type = 'GOOGLE';
+	} else {
+		$type = 'HOSTED'
+	}
+	
     $post_variables = array(
-      'accountType' => 'GOOGLE',
+      'accountType' => $type,
       'Email' => $email,
       'Passwd' => $password,
       'source' => gapi::interface_name,
