@@ -400,11 +400,11 @@ class gapi
    */
   protected function authenticateUser($email, $password)
   {
-	//Updated by jec006 to handle apps accounts also
+	// Updated by jec006 to handle apps accounts also
 	if( stristr($email, 'gmail.com') || stristr($email, 'mail.google.com') ) {
 		$type = 'GOOGLE';
 	} else {
-		$type = 'HOSTED'
+		$type = 'HOSTED';
 	}
 	
     $post_variables = array(
@@ -414,7 +414,8 @@ class gapi
       'source' => gapi::interface_name,
       'service' => 'analytics'
     );
-    
+    // end jec006 mod
+
     $response = $this->httpRequest(gapi::client_login_url,null,$post_variables);
     
     //Convert newline delimited variables into url format then import to array
