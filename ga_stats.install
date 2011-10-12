@@ -39,9 +39,9 @@ function ga_stats_schema() {
       ),
     ),
     'indexes' => array(
-      'ga_stats_metric'=>array('metric'), 
-      'ga_stats_timeframe'=>array('timeframe'),
-      'ga_stats_nid'=>array('nid')
+      'ga_stats_metric' => array('metric'), 
+      'ga_stats_timeframe' => array('timeframe'),
+      'ga_stats_nid' => array('nid')
     ) 
   );
   return $schema;

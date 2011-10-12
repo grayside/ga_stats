@@ -11,7 +11,7 @@
  * @return : an array of obj ready for the ga_stats_count table 
  */
 function ga_stats_get_data($metric, $start_time, $end_time, $timeframe='') {
-  $data_array = ga_stats_ga_data($metric,$start_time,$end_time);
+  $data_array = ga_stats_ga_data($metric, $start_time, $end_time);
   $metrics = ga_stats_ga_metrics();
   $counts = array();
   foreach ($data_array as $d) {
@@ -19,18 +19,18 @@ function ga_stats_get_data($metric, $start_time, $end_time, $timeframe='') {
     $count->url = $d['url'];
     $count->count = $d[$metric];
     $count->metric = $metric;
-    $count->nid = false;
+    $count->nid = FALSE;
     $count->timeframe = $timeframe;
-    $alias = preg_replace('/^\//','',$count->url);
-    if( !preg_match('/^node\/([0-9]*)/',$alias,$matches) ){
-      $alias = drupal_lookup_path('source',$alias);
+    $alias = preg_replace('/^\//', '', $count->url);
+    if (!preg_match('/^node\/([0-9]*)/', $alias, $matches) ) {
+      $alias = drupal_lookup_path('source', $alias);
     }
-    if( preg_match('/^node\/([0-9]*)/',$alias,$matches)  ){
+    if (preg_match('/^node\/([0-9]*)/', $alias, $matches)  ) {
       $count->nid = $matches[1];
     }
 
     // only log nodes
-    if($count->nid) {
+    if ($count->nid) {
       $counts[] = $count;
     }
   }
@@ -41,7 +41,7 @@ function ga_stats_get_data($metric, $start_time, $end_time, $timeframe='') {
 /**
  *  Implementation of hook_view_api
  */
-function ga_stats_views_api(){
+function ga_stats_views_api() {
   return array(
     'api' => 2,
   );
@@ -54,13 +54,14 @@ function ga_stats_views_api(){
  */
 function ga_stats_cron() {
   
-  if(!cache_get('ga_stats_data')){
+  if (!cache_get('ga_stats_data')) {
     $data = ga_stats_update_counts();
     //save the data for 10 or 30 minutes (based on whether hourly data is enabled
     $times = variable_get('ga_stats_enabled_timeframes', array('today', 'month'));
-    if(in_array('hour', $times)){
+    if (in_array('hour', $times)) {
       $add = 60*10;
-    } else {
+    }
+    else {
       $add = 60 * 30;
     }
     
@@ -81,10 +82,10 @@ function ga_stats_update_counts() {
   $password = variable_get('ga_stats_password', '');
   $aid = variable_get('ga_stats_profile', '');
   
-  if($user && $password){
-    foreach ($metrics as $metric=>$title) {
-      foreach ($timeframes as $key=>$time){
-        $filter = isset($time['filter']) ? $time['filter'] : null;
+  if ($user && $password) {
+    foreach ($metrics as $metric => $title) {
+      foreach ($timeframes as $key => $time) {
+        $filter = isset($time['filter']) ? $time['filter'] : NULL;
         $new_data = ga_stats_get_data($metric, time()-$time['secsToSub'], time(), $key, $filter);
         $data= array_merge($data, $new_data);
       }
@@ -94,10 +95,11 @@ function ga_stats_update_counts() {
     foreach ($data as $obj) {
       ga_stats_write_count($obj);
     }
-    drupal_set_message('Counts Successfully Updated');
+    drupal_set_message(t('Counts Successfully Updated'));
     return $data;
-  } else {
-    drupal_set_message('Google Analytics email and password not set.', 'error');
+  }
+  else {
+    drupal_set_message(t('Google Analytics email and password not set.'), 'error');
   }
 }
 
@@ -130,7 +132,7 @@ function ga_stats_admin_settings() {
     '#title' => t('Google Analytics Login Information'),
     '#collapsible' => TRUE
   );
-  if(variable_get('ga_stats_email', FALSE)){
+  if (variable_get('ga_stats_email', FALSE)) {
     $form['ga_stats_login']['#collapsed'] = TRUE;
   }
   
@@ -151,19 +153,20 @@ function ga_stats_admin_settings() {
     '#title' => t('Google Analytics Tracking Accounts'),
     '#collapsible' => TRUE
   );
-  if(variable_get('ga_stats_email', false) && variable_get('ga_stats_password', false)){
+  if (variable_get('ga_stats_email', FALSE) && variable_get('ga_stats_password', FALSE)) {
     $account = ga_stats_ga_get_accounts();
-  } else {
-    $account = false;
+  }
+  else {
+    $account = FALSE;
   }
   $options = array();
-  if(is_array($account)){
-    foreach($account as $id=>$value){
+  if (is_array($account)) {
+    foreach ($account as $id => $value) {
       $acc = $value->getProperties();    
       $options[$acc['profileId']] = $acc['title'];
     }
   }
-  if($options){
+  if ($options) {
     $form['ga_stats_accounts']['ga_stats_profile'] = array(
       '#type' => 'select',
       '#title' => t('Google Analytics Profile to Use'),
@@ -172,10 +175,11 @@ function ga_stats_admin_settings() {
       '#default_value' => variable_get('ga_stats_profile', '')
     );
     
-  } else {
+  }
+  else {
     $form['ga_stats_accounts']['ga_stats_profile'] = array(
       '#type' => 'markup',
-      '#markup' => '<div class="messages warning">'.t('Email and Pasword not set or invalid.  Please set the login information and save this form. You will then be able to view and configure account information.').'</div>'
+      '#markup' => '<div class="messages warning">' . t('Email and Pasword not set or invalid. Please set the login information and save this form. You will then be able to view and configure account information.') . '</div>'
     );
   }
   
@@ -186,17 +190,17 @@ function ga_stats_admin_settings() {
   );
   
   $form['enabled_stats']['ga_stats_enabled_metrics'] = array(
-    '#type'=>'checkboxes',
-    '#default_value'=> variable_get('ga_stats_enabled_metrics', array('pageviews')),
+    '#type' => 'checkboxes',
+    '#default_value' => variable_get('ga_stats_enabled_metrics', array('pageviews')),
     '#options' => ga_stats_ga_metrics(true),
     '#title' => t('Metrics'),
     '#description' => t('The metrics that will be available from Google Analytics in Views.')
   );
   
   $form['enabled_stats']['ga_stats_enabled_timeframes'] = array(
-    '#type'=>'checkboxes',
-    '#default_value'=> variable_get('ga_stats_enabled_timeframes', array('today', 'month')),
-    '#options' => ga_stats_ga_timeframes(true, true),
+    '#type' => 'checkboxes',
+    '#default_value' => variable_get('ga_stats_enabled_timeframes', array('today', 'month')),
+    '#options' => ga_stats_ga_timeframes(TRUE, TRUE),
     '#title' => t('Time Frames'),
     '#description' => t('The timeframes that will be available from Google Analytics in Views.')
   );
@@ -208,7 +212,7 @@ function ga_stats_admin_settings() {
     '#default_value' => variable_get('ga_stats_max_results', '100')
   );
   
-  if(variable_get('ga_stats_profile', false)){
+  if (variable_get('ga_stats_profile', FALSE)) {
     $form['actions']['ga_stats_update'] = array(
       '#type' => 'button',
       '#value' => t('Update Counts'),
@@ -224,12 +228,12 @@ function ga_stats_admin_settings() {
 /**
  *  Just set the password if we already have one and the form field was ignored.
  */
-function ga_stats_form_validate($form, &$form_state){
-  if(!$form_state['values']['ga_stats_password']){
+function ga_stats_form_validate($form, &$form_state) {
+  if (!$form_state['values']['ga_stats_password']) {
     $form_state['values']['ga_stats_password'] = variable_get('ga_stats_password', '');
   }
 }
 
-function ga_stats_write_count($count){
+function ga_stats_write_count($count) {
   drupal_write_record('ga_stats_count', $count);
 }
