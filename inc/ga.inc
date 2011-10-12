@@ -75,6 +75,7 @@ function ga_stats_ga_timeframes($just_keys=FALSE, $all=FALSE) {
     $timeframes = array(
       'hour' => 'in the past hour',
       'today' => 'in the past 24 hours',
+      '2days' => 'in the past 48 hours',
       'week' => 'in the past 7 days',
       'month' => 'in the past 31 days',
       'forever' => 'for all time'
@@ -84,6 +85,7 @@ function ga_stats_ga_timeframes($just_keys=FALSE, $all=FALSE) {
     $timeframes = array(
       'hour' => array('secsToSub' => (60*60), 'filter' => 'hour=='+date('G'), 'title' => 'in the past hour'),
       'today' => array('secsToSub' => (60*60*24), 'filter' => 'day=='+date('j'), 'title' => 'in the past 24 hours'),
+      '2days' => array('secsToSub' => (60*60*24*2), 'title' => 'in the past 48 hours'),
       'week' => array('secsToSub' => (60*60*24*7), 'title' => 'in the past 7 days'),
       'month' => array('secsToSub' => (60*60*24*31), 'title' => 'in the past 31 days'),
       'forever' => array('secsToSub' => time() - strtotime('2005-01-01'), 'title' => 'for all time')
