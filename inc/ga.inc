@@ -57,7 +57,7 @@ function ga_stats_ga_metrics($all=FALSE) {
   if (!$all) {
     $enabled = variable_get('ga_stats_enabled_metrics', array('pageviews'));
     foreach ($metrics as $k => $v) {
-      if (!$enabled[$k]) {
+      if (!isset($enabled[$k]) || !$enabled[$k]) {
         unset($metrics[$k]);
       }
     }
@@ -95,7 +95,7 @@ function ga_stats_ga_timeframes($just_keys=FALSE, $all=FALSE) {
   if (!$all) {
     $enabled = variable_get('ga_stats_enabled_timeframes', array('today', 'month'));
     foreach ($timeframes as $k => $v) {
-      if (!$enabled[$k]) {
+      if (!isset($enabled[$k]) || !$enabled[$k]) {
         unset($timeframes[$k]);
       }
     }
