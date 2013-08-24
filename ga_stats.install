@@ -78,6 +78,7 @@ function ga_stats_uninstall() {
   variable_del('ga_stats_password');
   variable_del('ga_stats_profile');
   variable_del('ga_stats_acct_type');
+  variable_del('ga_stats_last_update');
 }
 
 /**
