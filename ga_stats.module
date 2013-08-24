@@ -21,14 +21,39 @@ function ga_stats_menu() {
 }
 
 /**
- * pull data from a source
- * @param $source_name : then name of the source from which to pull data
- * @param $metrics : an array or string of the metrics to pull
- * @param $time_frame : a time_frame obj 
- * @param $end_time : the end time from which data is pulled
- * @return : an array of obj ready for the ga_stats_count table 
+ * Implements of hook_views_api()
  */
-function ga_stats_get_data($metric, $start_time, $end_time, $timeframe='') {
+function ga_stats_views_api() {
+  return array(
+    'api' => 2,
+  );
+}
+
+/**
+ * Implements of hook_cron().
+ */
+function ga_stats_cron() {
+  if (ga_stats_needs_update()) {
+    ga_stats_update_counts();
+  }
+}
+
+/**
+ * Pull data from Google Analytics and prepare for storage.
+ *
+ * @param array|string $metric
+ *   An array or string of the metrics to pull.
+ * @param int $start_time
+ *   The beginning of the timeframe for which data is pulled.
+ * @param int $end_time
+ *   The end of the timeframe for which data is pulled.
+ * @param $timeframe
+ *   A time_frame object.
+ *
+ * @return array
+ *   An array of obj ready for the ga_stats_count table
+ */
+function ga_stats_get_data($metric, $start_time, $end_time, $timeframe = '') {
   $data_array = ga_stats_ga_data($metric, $start_time, $end_time);
   $metrics = ga_stats_ga_metrics();
   $counts = array();
@@ -54,24 +79,6 @@ function ga_stats_get_data($metric, $start_time, $end_time, $timeframe='') {
   }
   
   return $counts;
-}
-
-/**
- *  Implementation of hook_view_api
- */
-function ga_stats_views_api() {
-  return array(
-    'api' => 2,
-  );
-}
-
-/**
- * Implementation of hook_cron
- */
-function ga_stats_cron() {
-  if (ga_stats_needs_update()) {
-    ga_stats_update_counts();
-  }
 }
 
 /**
@@ -112,8 +119,9 @@ function ga_stats_schedule_update() {
 
 /**
  * Goes through sources and metrics and updates databases
- * NOTE: as views can not tell the differenece between metrics and time frames
- * we are delete all counts before rebuilding
+ *
+ * Views cannot tell the difference between the various metrics and timeframes
+ * so we delete all counts before rebuilding.
  */
 function ga_stats_update_counts() {
   $user = variable_get('ga_stats_email', '');
@@ -149,6 +157,11 @@ function ga_stats_update_counts() {
   return ga_stats_schedule_update();
 }
 
+/**
+ * Write the data associated with a specific page to the database.
+ *
+ * @param object $count
+ */
 function ga_stats_write_count($count) {
   drupal_write_record('ga_stats_count', $count);
 }

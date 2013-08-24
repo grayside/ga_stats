@@ -1,13 +1,12 @@
 <?php
 /**
- * Implementation of hook_schema()
- *
- * create tables ga_stats_metrics and ga_stats_count
+ * Implements hook_schema()
  */
 function ga_stats_schema() {
   $schema = array();
+
   $schema['ga_stats_count'] = array(
-    'description' => 'Stores counts for different metics',
+    'description' => 'Stores counts for different metics.',
     'fields' => array(
       'nid' => array(
         'type' => 'int',
@@ -18,24 +17,24 @@ function ga_stats_schema() {
         'type' => 'varchar',
         'length' => 128,
         'not null' => FALSE,
-        'description' => 'url of page',
+        'description' => 'URL of page',
       ),
       'metric' => array(
         'type' => 'varchar',
         'length' => 128,
         'not null' => FALSE,
-        'description' => 'name of metric',
+        'description' => 'name of tracked metric',
       ),
       'timeframe' => array(
         'type' => 'varchar',
         'length' => 128,
         'not null' => FALSE,
-        'description' => 'timeframe of metric'
+        'description' => 'timeframe delimiter of metric'
       ),
       'count' => array(
         'type' => 'int',
         'not null' => TRUE,
-        'description' => 'number of reads',
+        'description' => 'number of hits recorded for the metric',
       ),
     ),
     'indexes' => array(
@@ -48,15 +47,8 @@ function ga_stats_schema() {
   return $schema;
 }
 
-/*
- * Implementation of hook_install
- */
-function ga_stats_install() {
-
-}
-
-/*
- * Implementation of hook_uninstall
+/**
+ * Implements of hook_uninstall
  */
 function ga_stats_uninstall() {
   variable_del('ga_stats_email');
@@ -71,7 +63,8 @@ function ga_stats_uninstall() {
 function ga_stats_update_7101(&$sandbox) {
   try {
     db_add_index('ga_stats_count', 'ga_stats_count', array('count'));
-  } catch (FieldException $e) {
+  }
+  catch (FieldException $e) {
     throw new DrupalUpdateException($e->getMessage());
   }
 }
