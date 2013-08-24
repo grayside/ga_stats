@@ -55,7 +55,7 @@ function ga_stats_ga_metrics($all=FALSE) {
   );
   
   if (!$all) {
-    $enabled = variable_get('ga_stats_enabled_metrics', array('pageviews'));
+    $enabled = variable_get('ga_stats_enabled_metrics', array('pageviews' => TRUE));
     foreach ($metrics as $k => $v) {
       if (!isset($enabled[$k]) || !$enabled[$k]) {
         unset($metrics[$k]);
@@ -70,7 +70,7 @@ function ga_stats_ga_metrics($all=FALSE) {
  *  @param $just_keys : whether we should return all the data or just the keys->values array
  *  TODO: add forever
  */
-function ga_stats_ga_timeframes($just_keys=FALSE, $all=FALSE) {
+function ga_stats_ga_timeframes($just_keys = FALSE, $all = FALSE) {
   if ($just_keys) {
     $timeframes = array(
       'hour' => 'in the past hour',
@@ -93,7 +93,7 @@ function ga_stats_ga_timeframes($just_keys=FALSE, $all=FALSE) {
   }
   
   if (!$all) {
-    $enabled = variable_get('ga_stats_enabled_timeframes', array('today', 'month'));
+    $enabled = variable_get('ga_stats_enabled_timeframes', array('today' => TRUE, 'month' => TRUE));
     foreach ($timeframes as $k => $v) {
       if (!isset($enabled[$k]) || !$enabled[$k]) {
         unset($timeframes[$k]);

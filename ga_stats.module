@@ -47,68 +47,93 @@ function ga_stats_views_api() {
   );
 }
 
-
-/*
+/**
  * Implementation of hook_cron
- * TODO: May want to hook this up another way (drush?)
  */
 function ga_stats_cron() {
-  
-  if (!cache_get('ga_stats_data')) {
-    $data = ga_stats_update_counts();
-    //save the data for 10 or 30 minutes (based on whether hourly data is enabled
-    $times = variable_get('ga_stats_enabled_timeframes', array('today', 'month'));
-    if (in_array('hour', $times)) {
-      $add = 60*10;
-    }
-    else {
-      $add = 60 * 30;
-    }
-    
-    cache_set('ga_stats_data', $data, 'cache', time()+$add);
+  if (ga_stats_needs_update()) {
+    ga_stats_update_counts();
   }
 }
 
-/*
+/**
+ * Determine if a scheduled statistics update is needed.
+ *
+ * @return bool
+ */
+function ga_stats_needs_update() {
+  $last = variable_get('ga_stats_last_update', NULL);
+  if (isset($last) && $last >= $_SERVER['REQUEST_TIME']) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Set the soonest statistics should be auto-updated.
+ *
+ * @return int
+ */
+function ga_stats_schedule_update() {
+  $timeframe = variable_get('ga_stats_enabled_timeframes', array('today' => TRUE, 'month' => TRUE));
+
+  // Save the data for 10 or 30 minutes (based on whether hourly data is enabled)
+  // @todo clarify why this seems arbitrary.
+  if (array_key_exists('hour', $timeframe)) {
+    $expiration = 60 * 10;
+  }
+  else {
+    $expiration = 60 * 30;
+  }
+  $expiration += $_SERVER['REQUEST_TIME'];
+  variable_set('ga_stats_last_update', $expiration);
+
+  return $expiration;
+}
+
+/**
  * Goes through sources and metrics and updates databases
  * NOTE: as views can not tell the differenece between metrics and time frames
  * we are delete all counts before rebuilding
  */
 function ga_stats_update_counts() {
-  $metrics = ga_stats_ga_metrics();
-  $timeframes = ga_stats_ga_timeframes();
-  $data = array();
   $user = variable_get('ga_stats_email', '');
   $password = variable_get('ga_stats_password', '');
   $aid = variable_get('ga_stats_profile', '');
-  
-  if ($user && $password) {
-    foreach ($metrics as $metric => $title) {
-      foreach ($timeframes as $key => $time) {
-        $filter = isset($time['filter']) ? $time['filter'] : NULL;
-        $new_data = ga_stats_get_data($metric, time()-$time['secsToSub'], time(), $key, $filter);
-        $data= array_merge($data, $new_data);
-      }
-    }
-  
-    db_query('DELETE FROM {ga_stats_count}');
-    foreach ($data as $obj) {
-      ga_stats_write_count($obj);
-    }
-    drupal_set_message(t('Counts Successfully Updated'));
-    return $data;
-  }
-  else {
+
+  // Check that credentials are available.
+  // @todo Move lower into callstack stack.
+  if (!$user || !$password) {
     drupal_set_message(t('Google Analytics email and password not set.'), 'error');
+    watchdog('ga_stats', 'Google Analytics API credentials not set.', WATCHDOG_WARNING);
+    return FALSE;
   }
+
+  $metrics = ga_stats_ga_metrics();
+  $timeframes = ga_stats_ga_timeframes();
+  $data = array();
+  foreach ($metrics as $metric => $title) {
+    foreach ($timeframes as $key => $time) {
+      $filter = isset($time['filter']) ? $time['filter'] : NULL;
+      $new_data = ga_stats_get_data($metric, time() - $time['secsToSub'], time(), $key, $filter);
+      $data = array_merge($data, $new_data);
+    }
+  }
+
+  db_query('DELETE FROM {ga_stats_count}');
+  foreach ($data as $obj) {
+    ga_stats_write_count($obj);
+  }
+  drupal_set_message(t('Counts Successfully Updated'));
+  watchdog('ga_stats', 'Updated statistics for !count records.', array('!count' => count($data)));
+
+  return ga_stats_schedule_update();
 }
 
-/*
- * Implimentation of hook_menu
- *
- * Add admin page and update count call back
+/**
+ * Implementation of hook_menu().
  */
-
 function ga_stats_menu() {
   $items['admin/config/system/ga_stats'] = array(
     'title' => 'Google Analytics Statistics',
