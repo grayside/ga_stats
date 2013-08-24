@@ -1,6 +1,97 @@
 <?php
 
 /**
+ * Pull data from Google Analytics and prepare for storage.
+ *
+ * @param array|string $metric
+ *   An array or string of the metrics to pull.
+ * @param int $start_time
+ *   The beginning of the timeframe for which data is pulled.
+ * @param int $end_time
+ *   The end of the timeframe for which data is pulled.
+ * @param $timeframe
+ *   A time_frame object.
+ *
+ * @return array
+ *   An array of obj ready for the ga_stats_count table
+ */
+function ga_stats_get_data($metric, $start_time, $end_time, $timeframe = '') {
+  $data_array = ga_stats_ga_data($metric, $start_time, $end_time);
+  $metrics = ga_stats_ga_metrics();
+  $counts = array();
+  foreach ($data_array as $d) {
+    $count = new stdClass;
+    $count->url = $d['url'];
+    $count->count = $d[$metric];
+    $count->metric = $metric;
+    $count->nid = FALSE;
+    $count->timeframe = $timeframe;
+    $alias = preg_replace('/^\//', '', $count->url);
+    if (!preg_match('/^node\/([0-9]*)/', $alias, $matches) ) {
+      $alias = drupal_lookup_path('source', $alias);
+    }
+    if (preg_match('/^node\/([0-9]*)/', $alias, $matches)  ) {
+      $count->nid = $matches[1];
+    }
+
+    // only log nodes
+    if ($count->nid) {
+      $counts[] = $count;
+    }
+  }
+
+  return $counts;
+}
+
+/**
+ * Goes through sources and metrics and updates databases
+ *
+ * Views cannot tell the difference between the various metrics and timeframes
+ * so we delete all counts before rebuilding.
+ */
+function _ga_stats_update_counts() {
+  // Check that credentials are available.
+  // @todo Move lower into callstack stack.
+  if (!ga_stats_is_ready()) {
+    drupal_set_message(t('Google Analytics email and password not set.'), 'error');
+    watchdog('ga_stats', 'Google Analytics API credentials not set.', array(), WATCHDOG_WARNING);
+
+    return FALSE;
+  }
+
+  $metrics = ga_stats_ga_metrics();
+  $timeframes = ga_stats_ga_timeframes();
+  $data = array();
+  foreach ($metrics as $metric => $title) {
+    foreach ($timeframes as $key => $time) {
+      $filter = isset($time['filter']) ? $time['filter'] : NULL;
+      $new_data = ga_stats_get_data($metric, time() - $time['secsToSub'], time(), $key, $filter);
+      $data = array_merge($data, $new_data);
+    }
+  }
+
+  db_query('DELETE FROM {ga_stats_count}');
+  foreach ($data as $obj) {
+    ga_stats_write_count($obj);
+  }
+  drupal_set_message(t('Counts Successfully Updated'));
+  watchdog('ga_stats', 'Updated statistics for !count records.', array('!count' => count($data)));
+
+  return ga_stats_schedule_update();
+}
+
+/**
+ * Write the data associated with a specific page to the database.
+ *
+ * @param object $count
+ */
+function ga_stats_write_count($count) {
+  drupal_write_record('ga_stats_count', $count);
+}
+
+
+
+/**
  *  call back funciton for pulling data from google anaylics
  *  @param metrics_in : and array or string of the metrics to pull
  *  @param start_date : time as an int
