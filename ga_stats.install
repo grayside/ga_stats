@@ -1,4 +1,27 @@
 <?php
+
+/**
+ * Implements hook_requirements().
+ */
+function ga_stats_requirements($phase) {
+  if ($phase != runtime) {
+    return;
+  }
+
+  $t = get_t();
+  $requirements = array();
+  if (!ga_stats_is_ready()) {
+    $requirements['ga_stats_ready'] = array(
+      'title' => $t('GA Stats Connection'),
+      'value' => l($t('Not Configured'), 'admin/config/services/ga_stats'),
+      'description' => $t('The GA Stats module is not configured for use. Any dependent functionality is broken.'),
+      'severity' => REQUIREMENT_ERROR,
+    );
+  }
+
+  return $requirements;
+}
+
 /**
  * Implements hook_schema()
  */

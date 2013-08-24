@@ -165,3 +165,14 @@ function ga_stats_update_counts() {
 function ga_stats_write_count($count) {
   drupal_write_record('ga_stats_count', $count);
 }
+
+/**
+ * Determine if the module is properly configured for use.
+ *
+ * The current logic is a placeholder for something more sophisticated.
+ *
+ * @return bool
+ */
+function ga_stats_is_ready() {
+  return variable_get('ga_stats_email', FALSE) && variable_get('ga_stats_password', FALSE);
+}
