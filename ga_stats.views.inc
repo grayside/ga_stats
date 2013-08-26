@@ -1,7 +1,7 @@
 <?php
 
 /**
- *  Implements hook_views_data().
+ * Implements hook_views_data().
  */
 function ga_stats_views_data() {
   $data = array();

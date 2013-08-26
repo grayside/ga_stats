@@ -29,8 +29,12 @@ function ga_stats_drush_command() {
  */
 function drush_ga_stats_update() {
   $schedule = ga_stats_update_counts();
-  drush_log(dt('Retrieved fresh Google Analytics data. Next scheduled retrieval will occur after !time.',
-    array('!time' => date('r', $schedule))), 'success');
+
+  // Stat update will not need a new update if it was successful.
+  if ($schedule) {
+    drush_log(dt('Retrieved fresh Google Analytics data. Next scheduled retrieval will occur after !time.',
+      array('!time' => date('r', $schedule))), 'success');
+  }
 }
 
 /**

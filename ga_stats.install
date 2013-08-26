@@ -4,22 +4,55 @@
  * Implements hook_requirements().
  */
 function ga_stats_requirements($phase) {
-  if ($phase != runtime) {
+  if ($phase != 'runtime') {
     return;
   }
 
   $t = get_t();
   $requirements = array();
+
+  $requirements['ga_stats_ready'] = array('title' => $t('GA Stats Connection'));
   if (!ga_stats_is_ready()) {
-    $requirements['ga_stats_ready'] = array(
-      'title' => $t('GA Stats Connection'),
+    $requirements['ga_stats_ready'] += array(
       'value' => l($t('Not Configured'), 'admin/config/services/ga_stats'),
       'description' => $t('The GA Stats module is not configured for use. Any dependent functionality is broken.'),
       'severity' => REQUIREMENT_ERROR,
     );
   }
+  elseif (!ga_stats_can_authenticate()) {
+    $requirements['ga_stats_ready'] += array(
+      'value' => l($t('Invalid Credentials'), 'admin/config/services/ga_stats'),
+      'description' => $t('GA Stats credentials are invalid. Please update on the configuration page. Any dependent functionality is broken.'),
+      'severity' => REQUIREMENT_ERROR,
+    );
+  }
+  else {
+    $requirements['ga_stats_ready'] += array(
+      'value' => $t('Connected'),
+      'severity' => REQUIREMENT_OK,
+    );
+  }
+
+  // Currently hardcoded in client-library path.
+  $requirements['ga_stats_api_version'] = array(
+    'title' => $t('GA Stats API Version Compatibility'),
+    'value' => 'v2.4',
+    'severity' => REQUIREMENT_NOTICE,
+  );
 
   return $requirements;
+}
+
+/**
+ * Determine if the user credentials can successfully authenticate against Google.
+ *
+ * @return bool
+ */
+function ga_stats_can_authenticate() {
+  require_once('includes/ga.inc');
+  $client = ga_stats_get_client(TRUE);
+
+  return isset($client);
 }
 
 /**
@@ -78,7 +111,7 @@ function ga_stats_uninstall() {
   variable_del('ga_stats_password');
   variable_del('ga_stats_profile');
   variable_del('ga_stats_acct_type');
-  variable_del('ga_stats_last_update');
+  variable_del('ga_stats_next_update');
 }
 
 /**

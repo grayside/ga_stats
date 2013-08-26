@@ -1,83 +1,110 @@
 <?php
 
 /**
- * Pull data from Google Analytics and prepare for storage.
- *
- * @param array|string $metric
- *   An array or string of the metrics to pull.
- * @param int $start_time
- *   The beginning of the timeframe for which data is pulled.
- * @param int $end_time
- *   The end of the timeframe for which data is pulled.
- * @param $timeframe
- *   A time_frame object.
- *
- * @return array
- *   An array of obj ready for the ga_stats_count table
- */
-function ga_stats_get_data($metric, $start_time, $end_time, $timeframe = '') {
-  $data_array = ga_stats_ga_data($metric, $start_time, $end_time);
-  $metrics = ga_stats_ga_metrics();
-  $counts = array();
-  foreach ($data_array as $d) {
-    $count = new stdClass;
-    $count->url = $d['url'];
-    $count->count = $d[$metric];
-    $count->metric = $metric;
-    $count->nid = FALSE;
-    $count->timeframe = $timeframe;
-    $alias = preg_replace('/^\//', '', $count->url);
-    if (!preg_match('/^node\/([0-9]*)/', $alias, $matches) ) {
-      $alias = drupal_lookup_path('source', $alias);
-    }
-    if (preg_match('/^node\/([0-9]*)/', $alias, $matches)  ) {
-      $count->nid = $matches[1];
-    }
-
-    // only log nodes
-    if ($count->nid) {
-      $counts[] = $count;
-    }
-  }
-
-  return $counts;
-}
-
-/**
  * Goes through sources and metrics and updates databases
  *
  * Views cannot tell the difference between the various metrics and timeframes
  * so we delete all counts before rebuilding.
+ *
+ * @return int|bool
  */
 function _ga_stats_update_counts() {
-  // Check that credentials are available.
-  // @todo Move lower into callstack stack.
-  if (!ga_stats_is_ready()) {
-    drupal_set_message(t('Google Analytics email and password not set.'), 'error');
-    watchdog('ga_stats', 'Google Analytics API credentials not set.', array(), WATCHDOG_WARNING);
-
-    return FALSE;
+  $client = ga_stats_get_client();
+  if (isset($client)) {
+    $data = ga_stats_collect_data($client);
   }
 
-  $metrics = ga_stats_ga_metrics();
-  $timeframes = ga_stats_ga_timeframes();
+  // Only wipe the data if we retrieved something to replace it with.
+  if (!empty($data)) {
+    db_query('DELETE FROM {ga_stats_count}');
+    foreach ($data as $record) {
+      ga_stats_write_count($record);
+    }
+
+    drupal_set_message(t('Counts Successfully Updated'));
+    watchdog('ga_stats', 'Updated statistics for !count records.', array('!count' => count($data)));
+
+    // Only schedule a new update if this was successful. If it failed, we should try to run a new
+    // update in the next available opportunity. Request flooding is not the purpose of the scheduler.
+    return ga_stats_schedule_update();
+  }
+
+  return FALSE;
+}
+
+/**
+ * Retrieve data for all configured metrics and time-frames.
+ *
+ * @param gapi $client
+ *
+ * @return array
+ */
+function ga_stats_collect_data($client) {
   $data = array();
-  foreach ($metrics as $metric => $title) {
-    foreach ($timeframes as $key => $time) {
-      $filter = isset($time['filter']) ? $time['filter'] : NULL;
-      $new_data = ga_stats_get_data($metric, time() - $time['secsToSub'], time(), $key, $filter);
-      $data = array_merge($data, $new_data);
+  $current = time();
+
+  foreach (ga_stats_ga_metrics() as $metric => $title) {
+    foreach (ga_stats_ga_timeframes() as $key => $timeframe) {
+      $filter = isset($timeframe['filter']) ? $timeframe['filter'] : NULL;
+      $results = ga_stats_ga_data($client, $metric, $current - $timeframe['secsToSub'], $current);
+      $data = array_merge($data, ga_stats_transform_data($results, $metric, $key));
     }
   }
 
-  db_query('DELETE FROM {ga_stats_count}');
-  foreach ($data as $obj) {
-    ga_stats_write_count($obj);
-  }
-  drupal_set_message(t('Counts Successfully Updated'));
-  watchdog('ga_stats', 'Updated statistics for !count records.', array('!count' => count($data)));
+  return $data;
+}
 
-  return ga_stats_schedule_update();
+/**
+ * Transform data from the retrieved structure to one ready for Drupal storage.
+ *
+ * @param array $results
+ *   Set of results retrieved from GA.
+ * @param array|string $metric
+ *   An array or string of the metrics to pull.
+ * @param $timeframe
+ *   Identifier for a predetermine timeframe.
+ *
+ * @return array
+ *   An array of obj ready for the ga_stats_count table
+ */
+function ga_stats_transform_data($results, $metric, $timeframe = '') {
+  $data = array();
+
+  foreach ($results as $record) {
+    $item = new stdClass;
+    $item->url = $record['url'];
+    $item->count = $record[$metric];
+    $item->metric = $metric;
+    $item->nid = FALSE;
+    $item->timeframe = $timeframe;
+    $item->nid = ga_stats_nid_from_url($record['url']);
+
+    // Only log nodes.
+    if ($item->nid) {
+      $data[] = $item;
+    }
+  }
+
+  return $data;
+}
+
+/**
+ * Attempts to determine a node nid based on the provided URL.
+ *
+ * @param string $url
+ *
+ * @return int|bool
+ */
+function ga_stats_nid_from_url($url) {
+  $alias = preg_replace('/^\//', '', $url);
+  if (!preg_match('/^node\/([0-9]*)/', $alias, $matches) ) {
+    $alias = drupal_lookup_path('source', $alias);
+  }
+  if (preg_match('/^node\/([0-9]*)/', $alias, $matches)  ) {
+    return $matches[1];
+  }
+
+  return FALSE;
 }
 
 /**
@@ -89,17 +116,22 @@ function ga_stats_write_count($count) {
   drupal_write_record('ga_stats_count', $count);
 }
 
-
-
 /**
- *  call back funciton for pulling data from google anaylics
- *  @param metrics_in : and array or string of the metrics to pull
- *  @param start_date : time as an int
- *  @param end_date : time as an int
- *  @return : and array of external_statistics_count db obj
+ *  Use the client library to query GA for fresh data.
  *
+ *  @param gapi $client
+ *  @param array|string metrics
+ *    The metrics to retrieve.
+ *  @param int start_date
+ *    Beginning of the time range.
+ *  @param int end_date
+ *    End of the time range.
+ *  @param $filter
+ *
+ *  @return array
+ *    Retrieve an array of "external_statistics_count" objects.
  */
-function ga_stats_ga_data($metrics, $start_date = 0, $end_date = 0, $filter=FALSE) {
+function ga_stats_ga_data($client, $metrics, $start_date = 0, $end_date = 0, $filter = FALSE) {
   $url_dim = 'pagePath';
   if (!is_array($metrics)) {
    $metrics = array($metrics);
@@ -107,16 +139,9 @@ function ga_stats_ga_data($metrics, $start_date = 0, $end_date = 0, $filter=FALS
   $request['dimensions'] = array($url_dim);
   $request['metrics'] = $metrics;
   
-  if ($start_date)
-    $request['start_date'] = date('Y-m-d', $start_date);
-  else
-    $request['start_date'] = NULL;
-    
-  if ($end_date)
-    $request['end_date'] = date('Y-m-d', $end_date);
-  else
-    $request['end_date'] = NULL;
-  
+  $request['start_date'] = $start_date ? date('Y-m-d', $start_date) : NULL;
+  $request['end_date'] = $end_date ? date('Y-m-d', $end_date) : NULL;
+
   $request['sort_metric'] = "-" . $metrics[0];
   $request['max_results'] = variable_get('ga_stats_max_results', "100");
   
@@ -124,7 +149,13 @@ function ga_stats_ga_data($metrics, $start_date = 0, $end_date = 0, $filter=FALS
     $request['filter'] = $filter;
   }
   
-  $data_raw = ga_stats_query_data($request);
+  $data_raw = ga_stats_query_data($client, $request);
+
+  // @todo move "data array" stuff up the callstack so this message can follow.
+  if (empty($data_raw)) {
+    drupal_set_message(t('Failed to retrieve data from Google Analytics.'), 'error');
+  }
+
   $data_array = ga_stats_ga_data_array($data_raw);
   foreach ($data_array as $k => $d) {
     $data_array[$k]['url'] = $d[$url_dim];
@@ -133,71 +164,18 @@ function ga_stats_ga_data($metrics, $start_date = 0, $end_date = 0, $filter=FALS
   return $data_array;
 }
 
-/*
- * Helper function to list metrics with plugin names and google analytics names
- */
-function ga_stats_ga_metrics($all=FALSE) {
-  
-  $metrics = array(
-    'pageviews' => 'Page Views',
-    'uniquePageviews' => 'Unique Page Views',
-    'avgTimeOnPage' => 'Average Time on Page',
-    'entrances' => 'Entrance Page'
-  );
-  
-  if (!$all) {
-    $enabled = variable_get('ga_stats_enabled_metrics', array('pageviews' => TRUE));
-    foreach ($metrics as $k => $v) {
-      if (!isset($enabled[$k]) || !$enabled[$k]) {
-        unset($metrics[$k]);
-      }
-    }
-  }
-  
-  return $metrics;
-}
-
 /**
- *  @param $just_keys : whether we should return all the data or just the keys->values array
- *  TODO: add forever
+ * Preprocess the retrieved data.
+ *
+ * This should be merged into the other transform function so we only do one
+ * rearrangement.
+ *
+ * @param $data_in
+ *
+ * @return array
  */
-function ga_stats_ga_timeframes($just_keys = FALSE, $all = FALSE) {
-  if ($just_keys) {
-    $timeframes = array(
-      'hour' => 'in the past hour',
-      'today' => 'in the past 24 hours',
-      '2days' => 'in the past 48 hours',
-      'week' => 'in the past 7 days',
-      'month' => 'in the past 31 days',
-      'forever' => 'for all time'
-    );
-  }
-  else {
-    $timeframes = array(
-      'hour' => array('secsToSub' => (60*60), 'filter' => 'hour=='+date('G'), 'title' => 'in the past hour'),
-      'today' => array('secsToSub' => (60*60*24), 'filter' => 'day=='+date('j'), 'title' => 'in the past 24 hours'),
-      '2days' => array('secsToSub' => (60*60*24*2), 'title' => 'in the past 48 hours'),
-      'week' => array('secsToSub' => (60*60*24*7), 'title' => 'in the past 7 days'),
-      'month' => array('secsToSub' => (60*60*24*31), 'title' => 'in the past 31 days'),
-      'forever' => array('secsToSub' => time() - strtotime('2005-01-01'), 'title' => 'for all time')
-    );
-  }
-  
-  if (!$all) {
-    $enabled = variable_get('ga_stats_enabled_timeframes', array('today' => TRUE, 'month' => TRUE));
-    foreach ($timeframes as $k => $v) {
-      if (!isset($enabled[$k]) || !$enabled[$k]) {
-        unset($timeframes[$k]);
-      }
-    }
-  }
-  
-  return $timeframes;
-}
-
 function ga_stats_ga_data_array($data_in) {
   $data_all = array();
-  $data = array();
 
   foreach ($data_in as $d) {
     $metrics = $d->getMetrics();
@@ -207,57 +185,116 @@ function ga_stats_ga_data_array($data_in) {
   return $data_all;
 }
 
-function ga_stats_ga_get_accounts() {
+/**
+ * GA client library factory.
+ *
+ * @param $suppress
+ *   If set to TRUE, will not output error results to the UI.
+ *
+ * @return gapi
+ */
+function ga_stats_get_client($suppress = FALSE) {
   require_once 'gapi.class.php';
-  
-  $user = variable_get('ga_stats_email', '');
+
+  $email = variable_get('ga_stats_email', '');
   $password = variable_get('ga_stats_password', '');
   $type = variable_get('ga_stats_acct_type', NULL);
-    
-  if ($user && $password) {
-    try{
-      $ga = new gapi($user, $password, NULL, $type);
-      $accounts = $ga->requestAccountData(1, 5000); 
-      return $accounts;
-    } catch (Exception $e) {
-      drupal_set_message(t('Invalid Google Analytics login.'), 'error');
-      watchdog('ga_stats', 'Invalid Google Analytics login.');
-      return;
-    }    
+
+  $client = NULL;
+  if (ga_stats_is_ready()) {
+    try {
+      $client = new gapi($email, $password, NULL, $type);
+    }
+    catch (Exception $e) {
+      $error = t('Invalid Google Analytics authentication attempt.');
+      watchdog('ga_stats', $e->getMessage(), array(), WATCHDOG_ERROR);
+    }
   }
   else {
-    drupal_set_message(t('Google Analytics Email and password not set - Could not retrieve Account Information.'), 'error');
-    watchdog('ga_stats', 'Google Analytics email and password not set.');
+    $error = t('Google Analytics Email and password not set.');
+    watchdog('ga_stats', 'Google Analytics email and password not set.', array(), WATCHDOG_ERROR);
   }
+
+  if (!$suppress && isset($error)) {
+    drupal_set_message($error, 'error');
+  }
+  if (!isset($error)) {
+    watchdog('ga_stats', 'Successfully authenticated client with Google Analytics.');
+  }
+
+  return $client;
 }
 
 /**
- *  @param $metric - one of the metrics values - a string value - i.e. 'pageviews'
- *  $report_id, $dimensions, $metrics, $sort_metric=null, $filter=null, $start_date=null, $end_date=null, $start_index=1, $max_results=30
+ * Collect GA account for UI display.
+ *
+ * @param gapi $client
+ *
+ * @return array
  */
+function ga_stats_ga_get_accounts($client) {
+  if (!isset($client)) {
+    return array();
+  }
 
-function ga_stats_query_data($request) {
-  //this is really a waste I think because this shit is preprocessed
-  require_once 'gapi.class.php';
-  
-  $user = variable_get('ga_stats_email', '');
-  $password = variable_get('ga_stats_password', '');
-  $aid = variable_get('ga_stats_profile', '');
-  $type = variable_get('ga_stats_acct_type', NULL);
-  
-  if ($user && $password) {
-    try{
-      $ga = new gapi($user, $password, NULL, $type);
-      $data = $ga->requestReportData($aid, $request['dimensions'], $request['metrics'], $request['sort_metric'], NULL, $request['start_date'], $request['end_date'], 1, $request['max_results']);
-    } catch (Exception $e) {
-      drupal_set_message(t('Invalid Google Analytics login.'), 'error');
-      watchdog('ga_stats', 'Invalid Google Analytics login.');
-      return array();
-    }    
-    return $data;    
+  try{
+    $accounts = $client->requestAccountData(1, 5000);
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('Could not retrieve accounts from Google Analytics.'), 'error');
+    watchdog('ga_stats', $e->getMessage(), array(), WATCHDOG_ERROR);
+
+    return array();
+  }
+
+  return $accounts;
+}
+
+/**
+ *  Query GA for a particular dataset.
+ *
+ *  @param gapi $client
+ *  @param array $request
+ *    - report_id
+ *    - dimensions
+ *    - metrics
+ *    - sort_metric=null
+ *    - filter=null
+ *    - start_date=null
+ *    - end_date=null
+ *    - start_index=1
+ *    - max_results=30
+ *
+ *  @return array
+ */
+function ga_stats_query_data($client, $request) {
+  try {
+    $data = $client->requestReportData(
+      variable_get('ga_stats_profile', ''),  // aid
+      $request['dimensions'],
+      $request['metrics'],
+      $request['sort_metric'],
+      NULL,
+      $request['start_date'],
+      $request['end_date'],
+      1,
+      $request['max_results']
+    );
+  }
+  catch (Exception $e) {
+    watchdog('ga_stats', $e->getMessage(), array(), WATCHDOG_ERROR);
+
+    return array();
+  }
+
+  if(empty($data)) {
+    watchdog('ga_stats', 'Successfully contacted Google Analytics, but an empty dataset was found for !metric.',
+      array('!metric' => $request['metrics']), WATCHDOG_WARNING
+    );
   }
   else {
-    drupal_set_message(t('Google Analytics Email and password not set.'), 'error');
-    watchdog('ga_stats', 'Google Analytics email and password not set.');
+    watchdog('ga_stats', 'Successfully retrieved data from Google Analytics.');
   }
+
+  return $data;
 }

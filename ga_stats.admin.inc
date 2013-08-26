@@ -45,7 +45,8 @@ function ga_stats_admin_settings() {
     '#collapsible' => TRUE
   );
   if (variable_get('ga_stats_email', FALSE) && variable_get('ga_stats_password', FALSE)) {
-    $account = ga_stats_ga_get_accounts();
+    require_once 'includes/ga.inc';
+    $account = ga_stats_ga_get_accounts(ga_stats_get_client());
   }
   else {
     $account = FALSE;
@@ -54,7 +55,7 @@ function ga_stats_admin_settings() {
   if (is_array($account)) {
     foreach ($account as $id => $value) {
       $acc = $value->getProperties();
-      $options[$acc['profileId']] = $acc['title'];
+      $options[$acc['profileId']] = "{$acc['title']} ({$acc['webPropertyId']})";
     }
   }
   if ($options) {
