@@ -1,37 +1,35 @@
 <?php
 
 /**
- * Callback for the GA Stats admin form.
+ * Callback for GA Stats authentication form.
  */
-function ga_stats_admin_settings() {
+function ga_stats_auth_settings() {
   $form = array();
 
   $form['ga_stats_login'] = array(
     '#type' => 'fieldset',
     '#title' => t('Google Analytics Login Information'),
-    '#collapsible' => TRUE
+    '#collapsible' => TRUE,
+    '#collapsed' => ga_stats_is_ready(),
   );
-  if (variable_get('ga_stats_email', FALSE)) {
-    $form['ga_stats_login']['#collapsed'] = TRUE;
-  }
 
   $form['ga_stats_login']['ga_stats_email'] = array(
     '#type' => 'textfield',
     '#title' => t('Account Email'),
-    '#description' => t('The email account you use to log in to Google Analytics'),
+    '#description' => t('The email account you use to log in to Google Analytics.'),
     '#default_value' => variable_get('ga_stats_email', '')
   );
 
   $form['ga_stats_login']['ga_stats_password'] = array(
     '#type' => 'password',
     '#title' => t('Account Password'),
-    '#description' => t('The password you use to log in to Google Analytics'),
+    '#description' => t('The password you use to log in to Google Analytics. This is not displayed once set.'),
   );
 
   $form['ga_stats_login']['ga_stats_acct_type'] = array(
     '#type' => 'select',
     '#title' => t('Account Type'),
-    '#description' => t('The account type you use to log in to Google Analytics'),
+    '#description' => t('The account type you use to log in to Google Analytics.'),
     '#options' => array(
       'GOOGLE' => t('Google'),
       'HOSTED' => t('Hosted'),
@@ -39,26 +37,43 @@ function ga_stats_admin_settings() {
     '#default_value' => variable_get('ga_stats_acct_type', NULL),
   );
 
+  $form['#validate'][] = 'ga_stats_auth_form_validate';
+
+  return system_settings_form($form);
+}
+
+
+/**
+ * Callback for the GA Stats admin form.
+ */
+function ga_stats_admin_settings() {
+  $form = array();
+
   $form['ga_stats_accounts'] = array(
     '#type' => 'fieldset',
     '#title' => t('Google Analytics Tracking Accounts'),
     '#collapsible' => TRUE
   );
-  if (variable_get('ga_stats_email', FALSE) && variable_get('ga_stats_password', FALSE)) {
-    require_once 'includes/ga.inc';
-    $account = ga_stats_ga_get_accounts(ga_stats_get_client());
+
+  if (!ga_stats_is_ready()) {
+    drupal_set_message(t('Your Google Analytics account credentials are not set. Visit the !authentication to configure them.',
+      array('!authentication' => l(t('authentication tab'), 'admin/config/services/ga_stats/auth'))), 'error');
+    $form['#disabled'] = TRUE;
+    $accounts = FALSE;
   }
   else {
-    $account = FALSE;
+    require_once 'includes/ga.inc';
+    // @todo expand on the error cases here.
+    $accounts = ga_stats_ga_get_accounts(ga_stats_get_client());
   }
+
   $options = array();
-  if (is_array($account)) {
-    foreach ($account as $id => $value) {
+  if (!empty($accounts) && is_array($accounts)) {
+    foreach ($accounts as $id => $value) {
       $acc = $value->getProperties();
       $options[$acc['profileId']] = "{$acc['title']} ({$acc['webPropertyId']})";
     }
-  }
-  if ($options) {
+
     $form['ga_stats_accounts']['ga_stats_profile'] = array(
       '#type' => 'select',
       '#title' => t('Google Analytics Profile to Use'),
@@ -66,12 +81,13 @@ function ga_stats_admin_settings() {
       '#options' => $options,
       '#default_value' => variable_get('ga_stats_profile', '')
     );
-
   }
   else {
     $form['ga_stats_accounts']['ga_stats_profile'] = array(
       '#type' => 'markup',
-      '#markup' => '<div class="messages warning">' . t('Email and Pasword not set or invalid. Please set the login information and save this form. You will then be able to view and configure account information.') . '</div>'
+      '#markup' => '<div class="messages warning">'
+        . t('Email and Password not set or invalid. Please !configure.', array('!configure' => l(t('configure your login credentials'), 'admin/config/services/ga_stats/auth')))
+        . '</div>'
     );
   }
 
@@ -84,7 +100,7 @@ function ga_stats_admin_settings() {
   $form['enabled_stats']['ga_stats_enabled_metrics'] = array(
     '#type' => 'checkboxes',
     '#default_value' => variable_get('ga_stats_enabled_metrics', array('pageviews')),
-    '#options' => ga_stats_ga_metrics(true),
+    '#options' => ga_stats_ga_metrics(TRUE),
     '#title' => t('Metrics'),
     '#description' => t('The metrics that will be available from Google Analytics in Views.')
   );
@@ -113,14 +129,14 @@ function ga_stats_admin_settings() {
       '#submit' => array('ga_stats_update_counts'),
     );
   }
-  $form['#validate'][] = 'ga_stats_form_validate';
+
   return system_settings_form($form);
 }
 
 /**
  *  Just set the password if we already have one and the form field was ignored.
  */
-function ga_stats_form_validate($form, &$form_state) {
+function ga_stats_auth_form_validate($form, &$form_state) {
   if (!$form_state['values']['ga_stats_password']) {
     $form_state['values']['ga_stats_password'] = variable_get('ga_stats_password', '');
   }

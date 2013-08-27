@@ -15,6 +15,21 @@ function ga_stats_menu() {
     'file' => 'ga_stats.admin.inc',
   );
 
+  $items['admin/config/services/ga_stats/auth'] = array(
+    'title' => 'Authentication',
+    'description' => 'Submit API credentials for Google Analytics Statistics',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ga_stats_auth_settings'),
+    'access arguments' => array('administer site config'),
+    'file' => 'ga_stats.admin.inc',
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  $items['admin/config/services/ga_stats/default'] = array(
+    'title' => 'Google Analytics Statistics',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
   return $items;
 }
 
@@ -105,7 +120,7 @@ function ga_stats_ga_metrics($all = FALSE) {
     'pageviews' => 'Page Views',
     'uniquePageviews' => 'Unique Page Views',
     'avgTimeOnPage' => 'Average Time on Page',
-    'entrances' => 'Entrance Page'
+    'entrances' => 'Entrance Page',
   );
 
   if (!$all) {
@@ -137,7 +152,7 @@ function ga_stats_ga_timeframes($form_options = FALSE, $all = FALSE) {
       '2days' => 'in the past 48 hours',
       'week' => 'in the past 7 days',
       'month' => 'in the past 31 days',
-      'forever' => 'for all time'
+      'forever' => 'since 2005 began'
     );
   }
   else {
@@ -147,7 +162,7 @@ function ga_stats_ga_timeframes($form_options = FALSE, $all = FALSE) {
       '2days' => array('secsToSub' => (60*60*24*2), 'title' => 'in the past 48 hours'),
       'week' => array('secsToSub' => (60*60*24*7), 'title' => 'in the past 7 days'),
       'month' => array('secsToSub' => (60*60*24*31), 'title' => 'in the past 31 days'),
-      'forever' => array('secsToSub' => time() - strtotime('2005-01-01'), 'title' => 'for all time')
+      'forever' => array('secsToSub' => time() - strtotime('2005-01-01'), 'title' => 'since 2005 began'),
     );
   }
 
