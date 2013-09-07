@@ -17,7 +17,7 @@ function ga_stats_auth_settings() {
     '#type' => 'textfield',
     '#title' => t('Account Email'),
     '#description' => t('The email account you use to log in to Google Analytics.'),
-    '#default_value' => variable_get('ga_stats_email', '')
+    '#default_value' => variable_get('ga_stats_email', ''),
   );
 
   $form['ga_stats_login']['ga_stats_password'] = array(
@@ -52,7 +52,7 @@ function ga_stats_admin_settings() {
   $form['ga_stats_accounts'] = array(
     '#type' => 'fieldset',
     '#title' => t('Google Analytics Tracking Accounts'),
-    '#collapsible' => TRUE
+    '#collapsible' => TRUE,
   );
 
   if (!ga_stats_is_ready()) {
@@ -79,7 +79,7 @@ function ga_stats_admin_settings() {
       '#title' => t('Google Analytics Profile to Use'),
       '#description' => t('The Google Analytics profile from which to retrieve statistics'),
       '#options' => $options,
-      '#default_value' => variable_get('ga_stats_profile', '')
+      '#default_value' => variable_get('ga_stats_profile', ''),
     );
   }
   else {
@@ -102,7 +102,7 @@ function ga_stats_admin_settings() {
     '#default_value' => variable_get('ga_stats_enabled_metrics', array('pageviews')),
     '#options' => ga_stats_ga_metrics(TRUE),
     '#title' => t('Metrics'),
-    '#description' => t('The metrics that will be available from Google Analytics in Views.')
+    '#description' => t('The metrics that will be available from Google Analytics in Views.'),
   );
 
   $form['enabled_stats']['ga_stats_enabled_timeframes'] = array(
@@ -110,14 +110,14 @@ function ga_stats_admin_settings() {
     '#default_value' => variable_get('ga_stats_enabled_timeframes', array('today', 'month')),
     '#options' => ga_stats_ga_timeframes(TRUE, TRUE),
     '#title' => t('Time Frames'),
-    '#description' => t('The timeframes that will be available from Google Analytics in Views.')
+    '#description' => t('The timeframes that will be available from Google Analytics in Views.'),
   );
 
   $form['ga_stats_max_results'] = array(
     '#type' => 'textfield',
     '#title' => t('Max Results per Metric/Timeframe'),
     '#description' => t('The max results that a call (a metric/timeframe combination) can return. MUST be a number.'),
-    '#default_value' => variable_get('ga_stats_max_results', '100')
+    '#default_value' => variable_get('ga_stats_max_results', '100'),
   );
 
   if (variable_get('ga_stats_profile', FALSE)) {

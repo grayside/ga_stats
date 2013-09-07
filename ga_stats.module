@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Implements of hook_menu().
+ * Implements hook_menu().
  */
 function ga_stats_menu() {
   $items = array();
@@ -34,7 +34,7 @@ function ga_stats_menu() {
 }
 
 /**
- * Implements of hook_views_api()
+ * Implements hook_views_api()
  */
 function ga_stats_views_api() {
   return array(
@@ -43,7 +43,7 @@ function ga_stats_views_api() {
 }
 
 /**
- * Implements of hook_cron().
+ * Implements hook_cron().
  */
 function ga_stats_cron() {
   if (ga_stats_needs_update()) {

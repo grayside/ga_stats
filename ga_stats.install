@@ -56,7 +56,7 @@ function ga_stats_can_authenticate() {
 }
 
 /**
- * Implements hook_schema()
+ * Implements hook_schema().
  */
 function ga_stats_schema() {
   $schema = array();
@@ -104,13 +104,15 @@ function ga_stats_schema() {
 }
 
 /**
- * Implements of hook_uninstall
+ * Implements hook_uninstall().
  */
 function ga_stats_uninstall() {
   variable_del('ga_stats_email');
   variable_del('ga_stats_password');
   variable_del('ga_stats_profile');
   variable_del('ga_stats_acct_type');
+  variable_del('ga_stats_enabled_timeframes');
+  variable_del('ga_stats_enabled_metrics');
   variable_del('ga_stats_next_update');
 }
 
