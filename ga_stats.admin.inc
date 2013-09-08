@@ -141,3 +141,15 @@ function ga_stats_auth_form_validate($form, &$form_state) {
     $form_state['values']['ga_stats_password'] = variable_get('ga_stats_password', '');
   }
 }
+
+/**
+ * Submit callback to update the statistics data.
+ */
+function ga_stats_update_counts_submit($form, &$form_state) {
+  if (ga_stats_update_counts()) {
+    drupal_set_message(t('Successfully retrieved Analytics data.'));
+    drupal_set_message(t('The next scheduled retrieval is on !date', array(
+      '!date' => date('r', ga_stats_data_expiration_date()),
+    )));
+  }
+}

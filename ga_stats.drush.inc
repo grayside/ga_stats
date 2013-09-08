@@ -28,12 +28,9 @@ function ga_stats_drush_command() {
  * Command callback for ga-stats-update.
  */
 function drush_ga_stats_update() {
-  $schedule = ga_stats_update_counts();
-
-  // Stat update will not need a new update if it was successful.
-  if ($schedule) {
+  if (ga_stats_update_counts()) {
     drush_log(dt('Retrieved fresh Google Analytics data. Next scheduled retrieval will occur after !time.',
-      array('!time' => date('r', $schedule))), 'success');
+      array('!time' => date('r', ga_stats_data_expiration_date()))), 'success');
   }
 }
 

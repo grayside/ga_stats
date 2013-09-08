@@ -38,7 +38,18 @@ function ga_stats_requirements($phase) {
     'title' => $t('GA Stats API Version Compatibility'),
     'value' => 'v2.4',
     'severity' => REQUIREMENT_NOTICE,
+    'description' => $t('The next scheduled update is set for !date', array(
+      '!date' => date('r', ga_stats_data_expiration_date()),
+    )),
   );
+
+  if (!variable_get('ga_stats_last_update', FALSE)) {
+    $requirements['ga_stats_api_version']['severity'] = REQUIREMENT_WARNING;
+    $requirements['ga_stats_api_version']['description'] = $t('Google Analytics data has not been accessed yet. Please run cron or visit the !configuration page to update counts.',
+    array(
+      '!configuration' => l($t('configuration'), 'admin/config/services/ga_stats'),
+    ));
+  }
 
   return $requirements;
 }
@@ -113,7 +124,7 @@ function ga_stats_uninstall() {
   variable_del('ga_stats_acct_type');
   variable_del('ga_stats_enabled_timeframes');
   variable_del('ga_stats_enabled_metrics');
-  variable_del('ga_stats_next_update');
+  variable_del('ga_stats_last_update');
 }
 
 /**

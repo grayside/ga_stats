@@ -57,20 +57,16 @@ function ga_stats_cron() {
  * @return bool
  */
 function ga_stats_needs_update() {
-  $next = variable_get('ga_stats_next_update', NULL);
-  if (isset($next) && $next <= $_SERVER['REQUEST_TIME']) {
-    return TRUE;
-  }
-
-  return FALSE;
+  return ga_stats_data_expiration_date() >= $_SERVER['REQUEST_TIME'];
 }
 
 /**
- * Set the soonest statistics should be auto-updated.
+ * Calculate when the analytics data will expire.
  *
  * @return int
  */
-function ga_stats_schedule_update() {
+function ga_stats_data_expiration_date() {
+  $last = variable_get('ga_stats_last_update', 0);
   $timeframe = variable_get('ga_stats_enabled_timeframes', array('today' => TRUE, 'month' => TRUE));
 
   // Save the data for 10 or 30 minutes (based on whether hourly data is enabled)
@@ -81,10 +77,19 @@ function ga_stats_schedule_update() {
   else {
     $expiration = 60 * 30;
   }
-  $expiration += $_SERVER['REQUEST_TIME'];
-  variable_set('ga_stats_next_update', $expiration);
 
-  return $expiration;
+  return $last + $expiration;
+}
+
+/**
+ * Set the soonest statistics should be auto-updated.
+ *
+ * @return int
+ */
+function ga_stats_schedule_update() {
+  variable_set('ga_stats_last_update', $_SERVER['REQUEST_TIME']);
+
+  return $_SERVER['REQUEST_TIME'];
 }
 
 /**
