@@ -5,7 +5,7 @@
  */
 function ga_stats_requirements($phase) {
   if ($phase != 'runtime') {
-    return;
+    return array();
   }
 
   $t = get_t();
@@ -37,7 +37,7 @@ function ga_stats_requirements($phase) {
   $requirements['ga_stats_api_version'] = array(
     'title' => $t('GA Stats API Version Compatibility'),
     'value' => 'v2.4',
-    'severity' => REQUIREMENT_NOTICE,
+    'severity' => REQUIREMENT_INFO,
     'description' => $t('The next scheduled update is set for !date', array(
       '!date' => date('r', ga_stats_data_expiration_date()),
     )),
