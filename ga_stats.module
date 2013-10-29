@@ -57,7 +57,7 @@ function ga_stats_cron() {
  * @return bool
  */
 function ga_stats_needs_update() {
-  return ga_stats_data_expiration_date() >= $_SERVER['REQUEST_TIME'];
+  return ga_stats_data_expiration_date() <= $_SERVER['REQUEST_TIME'];
 }
 
 /**
