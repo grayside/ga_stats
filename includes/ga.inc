@@ -11,12 +11,23 @@
 function _ga_stats_update_counts() {
   $client = ga_stats_get_client();
   if (isset($client)) {
-    $data = ga_stats_collect_data($client);
+    $current = time();
+    foreach (ga_stats_ga_timeframes() as $timeframe => $length) {
+      foreach (ga_stats_ga_metrics() as $metric => $title) {
+        $data = ga_stats_ga_data($client, $metric, $current - $length['secsToSub'], $current);
+        if (empty($data)) {
+          drupal_set_message(t('Failed to retrieve data from Google Analytics. Make sure there is data for the configured profile and run again.'), 'error');
+          return FALSE;
+        }
+
+        ga_stats_write_data_set(ga_stats_transform_data($data, $metric, $timeframe));
+      }
+    }
   }
 
   // Only wipe the data if we retrieved something to replace it with.
   if (!empty($data)) {
-    db_query('DELETE FROM {ga_stats_count}');
+    db_query("DELETE FROM {ga_stats_count}");
     foreach ($data as $record) {
       ga_stats_write_count($record);
     }
@@ -30,28 +41,6 @@ function _ga_stats_update_counts() {
   }
 
   return FALSE;
-}
-
-/**
- * Retrieve data for all configured metrics and time-frames.
- *
- * @param gapi $client
- *
- * @return array
- */
-function ga_stats_collect_data($client) {
-  $data = array();
-  $current = time();
-
-  foreach (ga_stats_ga_metrics() as $metric => $title) {
-    foreach (ga_stats_ga_timeframes() as $key => $timeframe) {
-      $filter = isset($timeframe['filter']) ? $timeframe['filter'] : NULL;
-      $results = ga_stats_ga_data($client, $metric, $current - $timeframe['secsToSub'], $current);
-      $data = array_merge($data, ga_stats_transform_data($results, $metric, $key));
-    }
-  }
-
-  return $data;
 }
 
 /**
@@ -71,16 +60,16 @@ function ga_stats_transform_data($results, $metric, $timeframe = '') {
   $data = array();
 
   foreach ($results as $record) {
-    $item = new stdClass;
-    $item->url = $record['url'];
-    $item->count = $record[$metric];
-    $item->metric = $metric;
-    $item->nid = FALSE;
-    $item->timeframe = $timeframe;
-    $item->nid = ga_stats_nid_from_url($record['url']);
+    $item = array(
+      'url' => $record['url'],
+      'count' => $record[$metric],
+      'metric' => $metric,
+      'nid' => ga_stats_nid_from_url($record['url']),
+      'timeframe' => $timeframe,
+    );
 
     // Only log nodes.
-    if ($item->nid) {
+    if ($item['nid']) {
       $data[] = $item;
     }
   }
@@ -105,6 +94,41 @@ function ga_stats_nid_from_url($url) {
   }
 
   return FALSE;
+}
+
+/**
+ * Write new dataset to the database.
+ *
+ * @param $data
+ */
+function ga_stats_write_data_set($data) {
+  $model = current($data);
+
+  // Currently we purge the data because we completely replace from GA.
+  // This needs to be refined to only target the subset of data we are currently replacing.
+  db_delete('ga_stats_count')
+    ->condition('metric', $model['metric'])
+    ->condition('timeframe', $model['timeframe'])
+    ->execute();
+
+  // Prepare insert object.
+  $insert = db_insert('ga_stats_count')->fields(array_keys($model));
+
+  $batch_size = 0;
+  foreach ($data as $record) {
+    // Fill in insert object values.
+    $insert->values($record);
+
+    // Execute in batches to avoid the memory overhead of all of those records
+    // in the query object.
+    if (++$batch_size == 20) {
+      $insert->execute();
+      $batch_size = 0;
+    }
+  }
+
+  // Insert any remaining records.
+  $insert->execute();
 }
 
 /**
@@ -151,24 +175,20 @@ function ga_stats_ga_data($client, $metrics, $start_date = 0, $end_date = 0, $fi
   
   $data_raw = ga_stats_query_data($client, $request);
 
-  // @todo move "data array" stuff up the callstack so this message can follow.
-  if (empty($data_raw)) {
-    drupal_set_message(t('Failed to retrieve data from Google Analytics.'), 'error');
+  $data_array = array();
+  if (!empty($data_raw)) {
+    // Assemble the data we will use.
+    $data_array = ga_stats_ga_data_array($data_raw);
+    foreach ($data_array as $k => $d) {
+      $data_array[$k]['url'] = $d[$url_dim];
+    }
   }
 
-  $data_array = ga_stats_ga_data_array($data_raw);
-  foreach ($data_array as $k => $d) {
-    $data_array[$k]['url'] = $d[$url_dim];
-  }
-  
   return $data_array;
 }
 
 /**
- * Preprocess the retrieved data.
- *
- * This should be merged into the other transform function so we only do one
- * rearrangement.
+ * Pre-process the retrieved data.
  *
  * @param $data_in
  *
@@ -211,7 +231,7 @@ function ga_stats_get_client($suppress = FALSE) {
     }
   }
   else {
-    $error = t('Google Analytics Email and password not set.');
+    $error = t('Google Analytics email and password not set.');
     watchdog('ga_stats', 'Google Analytics email and password not set.', array(), WATCHDOG_ERROR);
   }
 
