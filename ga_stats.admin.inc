@@ -86,7 +86,7 @@ function ga_stats_admin_settings() {
     $form['ga_stats_accounts']['ga_stats_profile'] = array(
       '#type' => 'markup',
       '#markup' => '<div class="messages warning">'
-        . t('Email and Password not set or invalid. Please !configure.', array('!configure' => l(t('configure your login credentials'), 'admin/config/services/ga_stats/auth')))
+        . t('Cannot select a tracking account until your Google Analytics !configured.', array('!configured' => l(t('account is configured'), 'admin/config/services/ga_stats/auth')))
         . '</div>'
     );
   }

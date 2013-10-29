@@ -148,12 +148,12 @@ function ga_stats_ga_data($client, $metrics, $start_date = 0, $end_date = 0, $fi
   if ($filter) {
     $request['filter'] = $filter;
   }
-  
+
   $data_raw = ga_stats_query_data($client, $request);
 
   // @todo move "data array" stuff up the callstack so this message can follow.
   if (empty($data_raw)) {
-    drupal_set_message(t('Failed to retrieve data from Google Analytics.'), 'error');
+    drupal_set_message(t('Failed to retrieve data from Google Analytics.'), 'error', FALSE);
   }
 
   $data_array = ga_stats_ga_data_array($data_raw);
@@ -288,8 +288,13 @@ function ga_stats_query_data($client, $request) {
   }
 
   if(empty($data)) {
-    watchdog('ga_stats', 'Successfully contacted Google Analytics, but an empty dataset was found for !metric.',
-      array('!metric' => $request['metrics']), WATCHDOG_WARNING
+    // At this point in the call stack, $request['metrics'] will have only one item.
+    watchdog('ga_stats', 'Successfully contacted Google Analytics, but an empty dataset was found for "!metric" between "!start" and "!end".',
+      array(
+        '!metric' => reset($request['metrics']),
+        '!start' => $request['start_date'],
+        '!end' => $request['end_date'],
+      ), WATCHDOG_WARNING
     );
   }
   else {
